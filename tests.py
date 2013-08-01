@@ -13,7 +13,6 @@ import json
 
 class SingleSpaceTest(TestCase):
     def setUp(self):
-        c = Client()
 
         # Create a user
         self.user = User.objects.create_user(username='user', password='pass', email='user@uw.edu')
@@ -45,47 +44,40 @@ class SingleSpaceTest(TestCase):
         can_publish = True
         print("setup")
 
+    def test_manager_publish(self):
+        print("1")
+        is_manager = True
+        can_publish = True
+        is_deleted = edit_space._is_deleted(before_queued_space, is_manager, can_publish, self.user, before_queued_space, c)
+        self.assertEqual(is_deleted, True, "Is a manager, and can publish")
+
     def test_basic_addition(self):
         """
         Tests that 1 + 1 always equals 2.
         """
         self.assertEqual(1 + 1, 2)
 
-    def manager_publish(self):
-        is_manager = True
-        can_publish = True
-        
-    def manager(self):
+
+    def test_manager(self):
         is_manager = True
         can_publish = False   
-    
-    def publish(self):
+        is_deleted = edit_space._is_deleted(before_queued_space, is_manager, can_publish, self.user, before_queued_space, c)
+        self.assertEqual(is_deleted, False, "Is a manager, and cannot publish")
+
+    def test_publish(self):
         is_manger = False
         can_publish = True
+        is_deleted = edit_space._is_deleted(before_queued_space, is_manager, can_publish, self.user, before_queued_space, c)
+        self.assertEqual(is_deleted, False, "Is not a manager, and can publish")
 
-    def none(self):
+
+    def test_none(self):
         is_manager = False
         can_publish = False
-
-    def tearDown(self):
-        print("teardown")
-        c.login(username=self.user.username, password=user.password)
         is_deleted = edit_space._is_deleted(before_queued_space, is_manager, can_publish, self.user, before_queued_space, c)
-        c.logout()
-        message = ""
-        if is_manager and can_publish:
-            message = "Is a manager, and can publish"
-            self.assertEqual(is_deleted, True, message)
-        elif is_manager and not can_publish:
-            message = "Is a manager, and cannot publish"
-            self.assertEqual(is_deleted, False, message)
-        elif can_publish and not is_manager:
-            message = "Is not a manager, and can publish"
-            self.assertEqual(is_deleted, False, message)
-        else:
-            message = "Is not a manager, and cannot publish"
-            self.assertEqual(is_deleted, False, message)
- 
+        self.assertEqual(is_deleted, False, "Is not a manager, and cannot publish")
+
+
 
 
 
