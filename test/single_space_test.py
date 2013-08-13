@@ -40,9 +40,26 @@ class SingleSpaceTest(TestCase):
         self.before_space.space_id = 1
         self.before_space.save()
         q_etag = self.before_space.q_etag
+        self.before_queued_space["q_id"] = 1 
         consumer = oauth2.Consumer(key=settings.SS_WEB_OAUTH_KEY, secret=settings.SS_WEB_OAUTH_SECRET)
         self.c = oauth2.Client(consumer)    
-    
+   
+    def _queued_space_test(self, is_manager, has_permission, message):
+        # if the space is deleted or reset, the space should not be contained in the QueuedSpace. 
+        # so check if it is properly deleted in the queue.
+        try:
+            QueuedSpace.objects.get(space_id = 1)
+        except QueuedSpace.DoesNotExist:
+            # add the space back to the queued space for future test if it is deleted.
+            before_form = QueueForm(self.before_queued_space)
+            self.assertEqual(before_form.is_valid(), True, "Makes sure the form is valid")
+            self.before_space = before_form.save(commit=False)            
+            self.before_space.space_last_modified = "2013-05-08T20:25:09.490751+00:00"
+            self.before_space.modified_by = self.user
+            self.before_space.space_id = 1
+            self.before_space.save()
+            self.assertEqual(True, is_manager and has_permission, message)
+ 
     def _delete_helper(self, can_publish, is_manager):
         # construct the error message
         manager_str = "a manager"
@@ -53,8 +70,11 @@ class SingleSpaceTest(TestCase):
             permission_str = "no " + permission_str
         message = "Delete failed at is " + manager_str + " and has " + permission_str 
         # try deleting the space
-        is_deleted = edit_space._is_deleted(self.before_queued_space, is_manager, can_publish, self.user, self.before_queued_space, self.c)
+        is_deleted = edit_space._is_deleted(self.before_queued_space, is_manager, can_publish, self.user, self.before_queued_space["id"], self.c)
         self.assertEqual(is_deleted, is_manager and can_publish, message)
+        # if the space is deleted, the space should not be contained in the QueuedSpace. 
+        # so check if it is properly deleted.
+        self._queued_space_test(is_manager, can_publish, message)         
 
     def test_delete_main(self):
         # test: has no permission to delete and is not a manager of the space --> fail
@@ -63,7 +83,7 @@ class SingleSpaceTest(TestCase):
         self._delete_helper(can_publish, is_manager)
 
         # test: has permission to delete, but is not a manager of the space --> fail
-        can_publush = True
+        can_publish = True
         self._delete_helper(can_publish, is_manager)
 
         # test: has permission to delete and is a manager of the space ---> success
@@ -121,6 +141,49 @@ class SingleSpaceTest(TestCase):
         # test: has no permission to approve, but is a manager of the space --> fail
         can_approve = False
         self._approve_helper(is_manager, can_approve, before_status)
+
+    def _reset_helper(self, is_manager, can_reset):
+        # construct the error message
+        manager_str = "a manager"
+        permission_str = "permission to reset"
+        if not is_manager:
+            manager_str = "not " + manager_str
+        if not can_reset:
+            permission_str = "no " + permission_str
+        message = "Reset failed at is " + manager_str + " and has " + permission_str 
+        is_reset = False
+        if is_manager:
+            print(self.before_queued_space["id"])
+            is_reset = edit_space._is_reset(self.before_queued_space, can_reset, self.before_queued_space["id"])
+            if is_reset:
+                is_reset = True
+        self.assertEqual(is_reset, can_reset and is_manager, message)
+        # if the space is reset, the space should not be contained in the QueuedSpace. 
+        # so check if it is properly reset.
+        self._queued_space_test(is_manager, can_reset, message)
+
+    def test_reset_main(self):
+        self.before_queued_space["changed"] = "reset"
+         
+        # test: has no permission to reset and is not a manager of the space --> fail
+        can_reset = False
+        is_manager = edit_space._is_manager(self.user, self.managers_group)
+        self._reset_helper(is_manager, can_reset)
+ 
+        # test: has permission to reset, but is not a manager of the space --> fail
+        can_reset = True
+        self._reset_helper(is_manager, can_reset)
+ 
+        # test: has permission to reset and is a manager of the space --> success
+        # add the user to the managers group, so the user become a manager of the space
+        self.user.groups.add(self.managers_group)
+        # check if the user is a manager of the space and has the right to publish
+        is_manager = edit_space._is_manager(self.user, self.managers_group)
+        self._reset_helper(is_manager, can_reset)
+ 
+        # test: has no permission to reset, but is a manager of the space --> fail
+        can_rest = False
+        self._reset_helper(is_manager, can_reset)
 
     def tearDown(self):
         # Delete the managers group and the user
